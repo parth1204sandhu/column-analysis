@@ -78,11 +78,102 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    .block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
-    h1 { font-size: 1.9rem !important; margin-bottom: 0.15rem !important; }
-    h2, h3 { margin-top: 0.75rem !important; margin-bottom: 0.35rem !important; }
-    div[data-testid="stVerticalBlock"] { gap: 0.7rem; }
-    hr { margin: 0.45rem 0 !important; }
+    :root {
+        --studio-bg: #0b1016;
+        --studio-panel: #111a24;
+        --studio-panel-raised: #15212d;
+        --studio-border: #263544;
+        --studio-blue: #35a5ff;
+        --studio-blue-strong: #1687e8;
+        --studio-text: #e8eef5;
+        --studio-muted: #91a1b2;
+    }
+    .stApp {
+        color: var(--studio-text);
+        background:
+            radial-gradient(ellipse at 14% 0%, rgba(32, 87, 132, 0.16), transparent 38%),
+            var(--studio-bg);
+    }
+    [data-testid="stHeader"] { background: rgba(11, 16, 22, 0.88); }
+    .block-container {
+        max-width: 1440px;
+        padding: 1.6rem 2.2rem 2.4rem;
+    }
+    h1 {
+        color: #f3f7fb;
+        font-size: 1.85rem !important;
+        font-weight: 650 !important;
+        margin: 0 0 0.12rem !important;
+    }
+    h2, h3 {
+        color: #dce7f1;
+        font-weight: 600 !important;
+        margin: 0.72rem 0 0.28rem !important;
+    }
+    p, label, [data-testid="stMarkdownContainer"] { color: var(--studio-text); }
+    div[data-testid="stVerticalBlock"] { gap: 0.62rem; }
+    hr { border-color: var(--studio-border); margin: 0.42rem 0 !important; }
+    [data-testid="stCaptionContainer"] p { color: var(--studio-muted); }
+    [data-testid="stMetric"] {
+        min-height: 6.1rem;
+        padding: 0.9rem 1rem;
+        background: linear-gradient(145deg, var(--studio-panel-raised), var(--studio-panel));
+        border: 1px solid var(--studio-border);
+        border-radius: 10px;
+    }
+    [data-testid="stMetricLabel"] p {
+        color: var(--studio-muted);
+        font-size: 0.82rem;
+    }
+    [data-testid="stMetricValue"] {
+        color: #f3f7fb;
+        font-size: 1.22rem;
+        font-weight: 620;
+    }
+    [data-testid="stNumberInput"] input,
+    [data-testid="stSelectbox"] [role="combobox"] {
+        background-color: #0e1720;
+        border-color: #304456;
+        border-radius: 8px;
+        color: var(--studio-text);
+    }
+    [data-testid="stCheckbox"] label { color: #d3dfeb; }
+    [data-testid="stButton"] button[kind="primary"] {
+        min-height: 2.75rem;
+        padding: 0.55rem 1.45rem;
+        color: #06111b;
+        background: linear-gradient(100deg, var(--studio-blue-strong), var(--studio-blue));
+        border: 1px solid #63b8ff;
+        border-radius: 8px;
+        font-weight: 650;
+        box-shadow: 0 5px 18px rgba(20, 130, 220, 0.18);
+    }
+    [data-testid="stButton"] button[kind="primary"]:hover {
+        border-color: #9bd4ff;
+        background: #42aaff;
+    }
+    [data-testid="stAlert"] {
+        border: 1px solid var(--studio-border);
+        border-radius: 8px;
+        background: #121c26;
+    }
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--studio-border);
+        border-radius: 9px;
+        overflow: hidden;
+    }
+    [data-testid="stPlotlyChart"] {
+        padding: 0.4rem 0.55rem 0.1rem;
+        background: var(--studio-panel);
+        border: 1px solid var(--studio-border);
+        border-radius: 10px;
+    }
+    @media (max-width: 760px) {
+        .block-container { padding: 1rem 1rem 1.6rem; }
+        h1 { font-size: 1.55rem !important; }
+        [data-testid="stMetric"] { min-height: 5.5rem; padding: 0.7rem; }
+        [data-testid="stMetricValue"] { font-size: 1.05rem; }
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -489,6 +580,11 @@ else:
                     "Rankine-Gordon": "Rankine-Gordon (provisional; verify constant)",
                     "Johnson": "Johnson (theoretical; criterion not configured)",
                 }
+                graph_colors = {
+                    "Euler": "#35a5ff",
+                    "Rankine-Gordon": "#43d9ad",
+                    "Johnson": "#f4b942",
+                }
                 for theory_name, critical_loads_n in graph_curves.items():
                     if any(load_n is not None for load_n in critical_loads_n):
                         graph_figure.add_trace(
@@ -500,6 +596,7 @@ else:
                                 ],
                                 mode="lines",
                                 name=graph_labels[theory_name],
+                                line={"color": graph_colors[theory_name], "width": 2.2},
                                 connectgaps=False,
                                 hovertemplate=(
                                     "Slenderness ratio: %{x:.4g}<br>"
@@ -514,20 +611,51 @@ else:
                         line_dash="dash",
                         line_color="gray",
                     )
+                    graph_figure.add_annotation(
+                        x=slenderness_ratio_value,
+                        y=1,
+                        xref="x",
+                        yref="paper",
+                        text=f"Your column: λ = {slenderness_ratio_value:,.6g}",
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor="bottom",
+                        xshift=8,
+                        yshift=8,
+                        bgcolor="#15212d",
+                        bordercolor="#35a5ff",
+                        borderwidth=1,
+                        font={"color": "#e8eef5", "size": 12},
+                    )
                     graph_figure.update_layout(
-                        template="plotly_white",
+                        template="plotly_dark",
+                        paper_bgcolor="#111a24",
+                        plot_bgcolor="#111a24",
+                        font={"family": "Segoe UI, sans-serif", "color": "#dce7f1", "size": 12},
                         hovermode="x unified",
-                        legend_title_text="Theory status",
-                        margin={"l": 20, "r": 20, "t": 20, "b": 20},
+                        legend={"title": {"text": "Theory status"}, "orientation": "h", "y": -0.28, "x": 0},
+                        margin={"l": 28, "r": 18, "t": 48, "b": 76},
                     )
                     graph_figure.update_xaxes(
-                        title_text="Slenderness ratio Le/k (dimensionless)"
+                        title_text="Slenderness ratio Le/k (dimensionless)",
+                        gridcolor="#263544",
+                        zerolinecolor="#34485b",
+                        title_font={"color": "#c5d3e0"},
                     )
-                    graph_figure.update_yaxes(title_text="Critical load (kN)")
+                    graph_figure.update_yaxes(
+                        title_text="Critical load (kN)",
+                        gridcolor="#263544",
+                        zerolinecolor="#34485b",
+                        title_font={"color": "#c5d3e0"},
+                    )
                     st.plotly_chart(
                         graph_figure,
                         width="stretch",
                         config={"displaylogo": False},
+                    )
+                    st.caption(
+                        "The dashed line marks the current column's slenderness ratio. "
+                        "It is a reference marker, not a theory-applicability boundary."
                     )
                     st.caption(
                         "Johnson points without a positive critical stress are omitted. "
