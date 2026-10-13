@@ -19,3 +19,7 @@ htmlcov/
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Copilot guidance
+/copilot.md
+/skills.md
