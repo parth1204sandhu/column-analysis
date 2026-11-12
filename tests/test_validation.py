@@ -5,6 +5,8 @@ from column_analysis.validation import (
     TheoryName,
     assess_theory_applicability,
     validate_engineering_inputs,
+    validate_factor_of_safety,
+    validate_youngs_modulus_gpa,
 )
 
 
@@ -66,6 +68,49 @@ def test_validate_engineering_inputs_rejects_unknown_names() -> None:
 def test_validate_engineering_inputs_rejects_empty_mapping() -> None:
     with pytest.raises(ValueError, match="Provide at least one engineering input"):
         validate_engineering_inputs({})
+
+
+@pytest.mark.parametrize("factor_of_safety", [0.5, 1.0])
+def test_validate_factor_of_safety_requires_value_greater_than_one(
+    factor_of_safety: float,
+) -> None:
+    with pytest.raises(ValueError, match="must be greater than 1.0"):
+        validate_factor_of_safety("Factor of safety", factor_of_safety)
+
+
+def test_validate_factor_of_safety_accepts_value_above_one() -> None:
+    validate_factor_of_safety("Factor of safety", 1.000001)
+
+
+def test_validate_engineering_inputs_rejects_factor_of_safety_at_boundary() -> None:
+    inputs = dict(VALID_INPUTS, factor_of_safety=1.0)
+
+    with pytest.raises(ValueError, match="must be greater than 1.0"):
+        validate_engineering_inputs(inputs)
+
+
+@pytest.mark.parametrize("youngs_modulus_gpa", [2000.0, 1e-300])
+def test_validate_youngs_modulus_accepts_positive_values_through_broad_limit(
+    youngs_modulus_gpa: float,
+) -> None:
+    validate_youngs_modulus_gpa("Young's modulus E", youngs_modulus_gpa)
+
+
+@pytest.mark.parametrize("youngs_modulus_gpa", [2000.0001, 1e6, 1e308])
+def test_validate_youngs_modulus_rejects_values_above_broad_limit(
+    youngs_modulus_gpa: float,
+) -> None:
+    with pytest.raises(ValueError, match="must not exceed 2000 GPa"):
+        validate_youngs_modulus_gpa("Young's modulus E", youngs_modulus_gpa)
+
+
+def test_validate_engineering_inputs_rejects_youngs_modulus_above_si_limit() -> None:
+    with pytest.raises(ValueError, match=r"youngs_modulus_pa must not exceed 2e\+12 Pa"):
+        validate_engineering_inputs({"youngs_modulus_pa": 2.0001e12})
+
+
+def test_validate_engineering_inputs_accepts_youngs_modulus_at_si_limit() -> None:
+    validate_engineering_inputs({"youngs_modulus_pa": 2e12})
 
 
 def test_euler_assessment_explains_assumptions_and_missing_criterion() -> None:

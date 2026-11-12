@@ -243,6 +243,15 @@ def test_invalid_rankine_constant_is_rejected() -> None:
         )
 
 
+def test_recommendation_rejects_modulus_above_broad_screening_limit() -> None:
+    with pytest.raises(ValueError, match="must not exceed 2000 GPa"):
+        recommend_theory(
+            80.0,
+            **_complete_inputs(youngs_modulus_gpa=1e6),
+            criteria=_configured_criteria(),
+        )
+
+
 @pytest.mark.parametrize(
     ("slenderness_ratio", "youngs_modulus_gpa"),
     [(0.0, 200.0), (-1.0, 200.0), (float("nan"), 200.0), (40.0, 0.0)],

@@ -1,10 +1,15 @@
+from collections.abc import Callable
 from math import isfinite
 
 import streamlit as st
 import plotly.graph_objects as go
 
 from column_analysis.graph_data import build_slenderness_curve_data
-from column_analysis.materials import MaterialGrade, load_material_database
+from column_analysis.materials import (
+    MaterialGrade,
+    create_custom_material,
+    load_material_database,
+)
 from column_analysis.properties import (
     EndCondition,
     effective_length,
@@ -16,7 +21,17 @@ from column_analysis.recommendation import (
     load_applicability_criteria,
     recommend_theory,
 )
-from column_analysis.sections import rectangular_section, solid_circular_section
+from column_analysis.sections import (
+    SectionProperties,
+    angle_section,
+    channel_section,
+    hollow_circular_section,
+    hollow_rectangular_section,
+    i_section,
+    rectangular_section,
+    solid_circular_section,
+    t_section,
+)
 from column_analysis.theories import (
     JohnsonOutOfRangeError,
     euler_critical_load,
@@ -27,7 +42,9 @@ from column_analysis.validation import (
     ApplicabilityStatus,
     TheoryName,
     validate_engineering_inputs,
+    validate_factor_of_safety,
     validate_positive_finite,
+    validate_youngs_modulus_gpa,
 )
 
 
@@ -42,19 +59,69 @@ MATERIAL_DATABASE = load_material_database()
 MATERIALS_BY_DISPLAY_NAME: dict[str, MaterialGrade] = {
     material.display_name: material for material in MATERIAL_DATABASE.values()
 }
-MATERIAL_OPTIONS = tuple(MATERIALS_BY_DISPLAY_NAME)
+CUSTOM_MATERIAL_NAME = "Custom Material"
+MATERIAL_OPTIONS = (*MATERIALS_BY_DISPLAY_NAME, CUSTOM_MATERIAL_NAME)
 DEFAULT_MATERIAL_NAME = "Structural Steel"
 
 MATERIAL_PROPERTY_LABELS = {
     "youngs_modulus_gpa": "Young's modulus E",
     "compressive_strength_mpa": "Compressive/crushing strength sigma_c",
+    "yield_stress_mpa": "Yield strength sigma_y",
+    "rankine_constant_dimensionless": "Rankine constant a",
+}
+MATERIAL_PROPERTY_UNITS = {
+    "youngs_modulus_gpa": "GPa",
+    "compressive_strength_mpa": "MPa",
+    "yield_stress_mpa": "MPa",
+    "rankine_constant_dimensionless": "dimensionless",
+}
+MATERIAL_PROPERTY_VALIDATION_NAMES = {
+    "youngs_modulus_gpa": "Young's modulus E",
+    "compressive_strength_mpa": "Compressive strength sigma_c",
     "yield_stress_mpa": "Yield stress sigma_y",
     "rankine_constant_dimensionless": "Rankine constant a",
 }
 
+SECTION_DIMENSION_INPUTS = {
+    "Solid circular": (("diameter_mm", "Diameter D"),),
+    "Rectangular": (("width_mm", "Width B"), ("height_mm", "Height H")),
+    "Hollow circular (pipe)": (
+        ("outer_diameter_mm", "Outer diameter D"),
+        ("inner_diameter_mm", "Inner diameter d"),
+    ),
+    "Hollow rectangular (RHS / box)": (
+        ("outer_width_mm", "Outer width B"),
+        ("outer_height_mm", "Outer height H"),
+        ("wall_thickness_mm", "Wall thickness t"),
+    ),
+    "I-section": (
+        ("overall_depth_mm", "Overall depth H"),
+        ("flange_width_mm", "Flange width B"),
+        ("web_thickness_mm", "Web thickness tw"),
+        ("flange_thickness_mm", "Flange thickness tf"),
+    ),
+    "Channel (C-section)": (
+        ("overall_depth_mm", "Overall depth H"),
+        ("flange_width_mm", "Flange width B (overall width)"),
+        ("web_thickness_mm", "Web thickness tw"),
+        ("flange_thickness_mm", "Flange thickness tf"),
+    ),
+    "Angle (L-section)": (
+        ("horizontal_leg_mm", "Horizontal leg b"),
+        ("vertical_leg_mm", "Vertical leg h"),
+        ("thickness_mm", "Thickness t"),
+    ),
+    "T-section": (
+        ("overall_depth_mm", "Overall depth H"),
+        ("flange_width_mm", "Flange width B"),
+        ("web_thickness_mm", "Web thickness tw"),
+        ("flange_thickness_mm", "Flange thickness tf"),
+    ),
+}
+
 
 def _apply_selected_material() -> None:
-    """Populate properties and provenance when the selected material changes."""
+    """Load selected-material properties into the editable session-state fields."""
     selected_name = st.session_state.get("material_selector", DEFAULT_MATERIAL_NAME)
     selected_material = MATERIALS_BY_DISPLAY_NAME.get(selected_name)
     property_sources: dict[str, str] = {}
@@ -62,27 +129,109 @@ def _apply_selected_material() -> None:
         property_value = (
             selected_material.properties[property_name].value
             if selected_material is not None
-            else None
+            else st.session_state.get("custom_material_values", {}).get(property_name)
         )
         st.session_state[property_name] = property_value
         property_sources[property_name] = (
-            "database"
-            if property_value is not None
+            "user"
+            if selected_name == CUSTOM_MATERIAL_NAME and property_value is not None
+            else "database"
+            if selected_material is not None and property_value is not None
             else "unavailable"
-            if selected_material is not None
-            else "custom"
+        )
+    if selected_material is None:
+        st.session_state["custom_material_name"] = st.session_state.get(
+            "custom_material_saved_name",
+            "",
         )
     st.session_state["material_property_sources"] = property_sources
+    st.session_state["active_material_name"] = selected_name
 
 
-def _mark_material_property_user_supplied(property_name: str) -> None:
-    """Track a manual value separately from the selected database record."""
-    property_sources = dict(st.session_state.get("material_property_sources", {}))
-    property_sources[property_name] = "user"
-    st.session_state["material_property_sources"] = property_sources
+def _request_material_recalculation(property_name: str | None = None) -> None:
+    """Recalculate results immediately after material data changes."""
+    if property_name is not None:
+        property_sources = dict(
+            st.session_state.get("material_property_sources", {})
+        )
+        property_sources[property_name] = (
+            "user" if st.session_state.get(property_name) is not None else "unavailable"
+        )
+        st.session_state["material_property_sources"] = property_sources
+    st.session_state["material_recalculate"] = True
 
 
-def optional_number_input(label: str, key: str, step: float = 1.0) -> float | None:
+def _handle_material_change() -> None:
+    if st.session_state.get("active_material_name") == CUSTOM_MATERIAL_NAME:
+        st.session_state["custom_material_values"] = {
+            property_name: st.session_state.get(property_name)
+            for property_name in MATERIAL_PROPERTY_LABELS
+        }
+        st.session_state["custom_material_saved_name"] = st.session_state.get(
+            "custom_material_name",
+            "",
+        )
+    _apply_selected_material()
+    _request_material_recalculation()
+
+
+def _create_section_properties(
+    section_type: str,
+    dimensions_m: dict[str, float],
+) -> SectionProperties:
+    """Dispatch converted SI dimensions to the matching geometry constructor."""
+    if section_type == "Solid circular":
+        return solid_circular_section(dimensions_m["diameter"])
+    if section_type == "Rectangular":
+        return rectangular_section(dimensions_m["width"], dimensions_m["height"])
+    if section_type == "Hollow circular (pipe)":
+        return hollow_circular_section(
+            dimensions_m["outer_diameter"],
+            dimensions_m["inner_diameter"],
+        )
+    if section_type == "Hollow rectangular (RHS / box)":
+        return hollow_rectangular_section(
+            dimensions_m["outer_width"],
+            dimensions_m["outer_height"],
+            dimensions_m["wall_thickness"],
+        )
+    if section_type == "I-section":
+        return i_section(
+            dimensions_m["overall_depth"],
+            dimensions_m["flange_width"],
+            dimensions_m["web_thickness"],
+            dimensions_m["flange_thickness"],
+        )
+    if section_type == "Channel (C-section)":
+        return channel_section(
+            dimensions_m["overall_depth"],
+            dimensions_m["flange_width"],
+            dimensions_m["web_thickness"],
+            dimensions_m["flange_thickness"],
+        )
+    if section_type == "Angle (L-section)":
+        return angle_section(
+            dimensions_m["horizontal_leg"],
+            dimensions_m["vertical_leg"],
+            dimensions_m["thickness"],
+        )
+    if section_type == "T-section":
+        return t_section(
+            dimensions_m["overall_depth"],
+            dimensions_m["flange_width"],
+            dimensions_m["web_thickness"],
+            dimensions_m["flange_thickness"],
+        )
+
+    raise ValueError(f"Unsupported cross-section {section_type!r}.")
+
+
+def optional_number_input(
+    label: str,
+    key: str,
+    step: float = 1.0,
+    on_change: Callable[[], None] | None = None,
+) -> float | None:
     """Render an empty numeric input so engineering values are never assumed."""
     return st.number_input(
         label,
@@ -93,12 +242,7 @@ def optional_number_input(label: str, key: str, step: float = 1.0) -> float | No
         format="%.6g",
         placeholder="Enter a value",
         key=key,
-        on_change=(
-            _mark_material_property_user_supplied
-            if key in MATERIAL_PROPERTY_LABELS
-            else None
-        ),
-        args=(key,) if key in MATERIAL_PROPERTY_LABELS else (),
+        on_change=on_change,
     )
 
 
@@ -246,65 +390,137 @@ st.divider()
 st.subheader("Column Geometry")
 section_type = st.selectbox(
     "Cross-section",
-    options=("Solid circular", "Rectangular"),
+    options=tuple(SECTION_DIMENSION_INPUTS),
     key="section_type",
 )
 
-diameter_mm = None
-width_mm = None
-height_mm = None
-if section_type == "Solid circular":
-    geometry_columns = st.columns(2)
-    with geometry_columns[0]:
-        diameter_mm = optional_number_input("Diameter (mm)", "diameter_mm")
-    with geometry_columns[1]:
-        column_length_mm = optional_number_input("Column length (mm)", "column_length_mm")
-else:
-    geometry_columns = st.columns(3)
-    with geometry_columns[0]:
-        width_mm = optional_number_input("Width (mm)", "width_mm")
-    with geometry_columns[1]:
-        height_mm = optional_number_input("Height (mm)", "height_mm")
-    with geometry_columns[2]:
-        column_length_mm = optional_number_input("Column length (mm)", "column_length_mm")
+section_dimension_specs = SECTION_DIMENSION_INPUTS[section_type]
+geometry_input_specs = section_dimension_specs + (
+    ("column_length_mm", "Column length"),
+)
+geometry_values_mm: dict[str, float | None] = {}
+for row_start in range(0, len(geometry_input_specs), 3):
+    row_specs = geometry_input_specs[row_start : row_start + 3]
+    geometry_columns = st.columns(len(row_specs))
+    for geometry_column, (input_key, input_label) in zip(
+        geometry_columns,
+        row_specs,
+    ):
+        with geometry_column:
+            geometry_values_mm[input_key] = optional_number_input(
+                f"{input_label} (mm)",
+                input_key,
+            )
+
+column_length_mm = geometry_values_mm["column_length_mm"]
+section_dimensions_mm = {
+    input_key: geometry_values_mm[input_key]
+    for input_key, _ in section_dimension_specs
+}
 
 st.divider()
 st.subheader("Material Properties")
-if st.session_state.get("material_selector") not in MATERIALS_BY_DISPLAY_NAME:
+if st.session_state.get("material_selector") not in MATERIAL_OPTIONS:
     st.session_state["material_selector"] = DEFAULT_MATERIAL_NAME
     _apply_selected_material()
 material_name = st.selectbox(
     "Material",
     options=MATERIAL_OPTIONS,
     key="material_selector",
-    on_change=_apply_selected_material,
+    on_change=_handle_material_change,
 )
 selected_material_grade = MATERIALS_BY_DISPLAY_NAME.get(material_name)
+if material_name != CUSTOM_MATERIAL_NAME and selected_material_grade is None:
+    raise ValueError(f"Unknown material selection {material_name!r}.")
 
-material_columns = st.columns(4)
-with material_columns[0]:
-    youngs_modulus_gpa = optional_number_input("Young's modulus E (GPa)", "youngs_modulus_gpa")
-with material_columns[1]:
-    compressive_strength_mpa = optional_number_input(
-        "Compressive/crushing strength sigma_c (MPa)",
-        "compressive_strength_mpa",
+material_input_errors: list[str] = []
+custom_material_name = ""
+if material_name == CUSTOM_MATERIAL_NAME:
+    custom_material_name = st.text_input(
+        "Material name",
+        key="custom_material_name",
+        on_change=_request_material_recalculation,
     )
-with material_columns[2]:
-    rankine_constant_dimensionless = optional_number_input(
-        "Rankine constant a (dimensionless)",
-        "rankine_constant_dimensionless",
-        step=0.001,
-    )
-with material_columns[3]:
-    yield_stress_mpa = optional_number_input(
-        "Yield stress sigma_y (MPa)",
-        "yield_stress_mpa",
-    )
+    custom_material_name = custom_material_name.strip()
+    if not custom_material_name:
+        material_input_errors.append("Custom material name must not be empty.")
+
+raw_material_values: dict[str, float | None] = {}
+property_columns = st.columns(4)
+for column, property_name in zip(property_columns, MATERIAL_PROPERTY_LABELS):
+    with column:
+        raw_material_values[property_name] = optional_number_input(
+            f"{MATERIAL_PROPERTY_LABELS[property_name]} "
+            f"({MATERIAL_PROPERTY_UNITS[property_name]})",
+            property_name,
+            step=0.001 if property_name == "rankine_constant_dimensionless" else 1.0,
+            on_change=lambda property_name=property_name: (
+                _request_material_recalculation(property_name)
+            ),
+        )
+
+material_property_values: dict[str, float | None] = {}
+for property_name, value in raw_material_values.items():
+    if value is None:
+        material_property_values[property_name] = None
+        if material_name == CUSTOM_MATERIAL_NAME and property_name == "youngs_modulus_gpa":
+            material_input_errors.append(
+                "Young's modulus E is required for a custom material."
+            )
+        continue
+
+    validation_name = MATERIAL_PROPERTY_VALIDATION_NAMES[property_name]
+    unit = MATERIAL_PROPERTY_UNITS[property_name]
+    try:
+        if property_name == "youngs_modulus_gpa":
+            validate_youngs_modulus_gpa(validation_name, value)
+        else:
+            validate_positive_finite(validation_name, value, unit)
+    except ValueError as error:
+        material_input_errors.append(str(error))
+        material_property_values[property_name] = None
+    else:
+        material_property_values[property_name] = value
+
+if material_name == CUSTOM_MATERIAL_NAME:
+    if custom_material_name and material_property_values["youngs_modulus_gpa"] is not None:
+        selected_material_grade = create_custom_material(
+            custom_material_name,
+            youngs_modulus_gpa=material_property_values["youngs_modulus_gpa"],
+            yield_stress_mpa=material_property_values["yield_stress_mpa"],
+            compressive_strength_mpa=material_property_values[
+                "compressive_strength_mpa"
+            ],
+            rankine_constant_dimensionless=material_property_values[
+                "rankine_constant_dimensionless"
+            ],
+        )
+        st.session_state["material_property_sources"] = {
+            property_name: (
+                "user"
+                if property_value.value is not None
+                else "unavailable"
+            )
+            for property_name, property_value in selected_material_grade.properties.items()
+        }
+    if not custom_material_name:
+        material_property_values = {
+            property_name: None for property_name in MATERIAL_PROPERTY_LABELS
+        }
+
+youngs_modulus_gpa = material_property_values["youngs_modulus_gpa"]
+yield_stress_mpa = material_property_values["yield_stress_mpa"]
+compressive_strength_mpa = material_property_values["compressive_strength_mpa"]
+rankine_constant_dimensionless = material_property_values[
+    "rankine_constant_dimensionless"
+]
 
 st.caption(
     "Euler, Rankine-Gordon, and Johnson predictions are calculated whenever their required "
-    "valid inputs are available. Rankine requires a sourced compressive strength and its "
-    "course/reference constant; tensile yield strength is not substituted."
+    "valid inputs are available. Rankine requires a valid compressive strength and its "
+    "explicit course/reference constant; verify user-entered values against an appropriate "
+    "source. Tensile yield strength is not substituted. Johnson requires a valid yield "
+    "strength and is not suitable for brittle materials such as cast iron."
 )
 
 missing_required_properties = []
@@ -318,29 +534,51 @@ if yield_stress_mpa is None:
     missing_required_properties.append("yield stress sigma_y (Johnson)")
 if missing_required_properties:
     st.info(
-        "The following theory predictions need additional inputs: "
+        "The following theory predictions are unavailable for this material: "
         + ", ".join(missing_required_properties)
-        + ". Enter a verified value manually; unavailable database values are not inferred."
+        + ". Enter values in the material properties fields when they are known and appropriate."
     )
 
 with st.expander("Material references and property notes"):
-    st.caption(selected_material_grade.notes)
-    for property_name, property_value in selected_material_grade.properties.items():
-        if property_value.source_url is not None:
-            property_reference = (
-                f"[{property_value.source}]({property_value.source_url})"
-            )
-        else:
-            property_reference = "No verified value"
-        st.markdown(
-            f"- **{MATERIAL_PROPERTY_LABELS[property_name]} "
-            f"({property_value.unit}):** {property_reference}. {property_value.notes}"
+    if selected_material_grade is None:
+        st.caption(
+            "Enter a non-empty name and valid Young's modulus to create the custom "
+            "material record. No missing properties are inferred."
         )
+    else:
+        st.caption(selected_material_grade.notes)
+        for property_name, property_value in selected_material_grade.properties.items():
+            is_user_entered = (
+                st.session_state.get("material_property_sources", {}).get(property_name)
+                == "user"
+                and material_property_values[property_name] is not None
+            )
+            if is_user_entered:
+                property_reference = "User-entered"
+                property_notes = (
+                    "Session-only value; verify its source, units, and applicability."
+                )
+            elif property_value.source_url is not None:
+                property_reference = (
+                    f"[{property_value.source}]({property_value.source_url})"
+                )
+                property_notes = property_value.notes
+            elif property_value.source == "User-entered":
+                property_reference = "User-entered"
+                property_notes = property_value.notes
+            else:
+                property_reference = "Unavailable"
+                property_notes = property_value.notes
+            st.markdown(
+                f"- **{MATERIAL_PROPERTY_LABELS[property_name]} "
+                f"({property_value.unit}):** {property_reference}. {property_notes}"
+            )
 
 property_sources = st.session_state.get("material_property_sources", {})
 origin_groups = {"Database": [], "User-entered": []}
 for property_name, source in property_sources.items():
-    if source in ("database", "user") and st.session_state.get(property_name) is not None:
+    property_value = material_property_values[property_name]
+    if source in ("database", "user") and property_value is not None:
         origin = "Database" if source == "database" else "User-entered"
         origin_groups[origin].append(MATERIAL_PROPERTY_LABELS[property_name])
 origin_summaries = [
@@ -389,12 +627,10 @@ raw_inputs = [
     ("Factor of safety", factor_of_safety, "dimensionless"),
     ("Applied axial load", applied_load_kn, "kN"),
 ]
-if diameter_mm is not None:
-    raw_inputs.append(("Diameter", diameter_mm, "mm"))
-if width_mm is not None:
-    raw_inputs.append(("Width", width_mm, "mm"))
-if height_mm is not None:
-    raw_inputs.append(("Height", height_mm, "mm"))
+for input_key, input_label in section_dimension_specs:
+    dimension_value_mm = section_dimensions_mm[input_key]
+    if dimension_value_mm is not None:
+        raw_inputs.append((input_label, dimension_value_mm, "mm"))
 if compressive_strength_mpa is not None:
     raw_inputs.append(("Compressive strength sigma_c", compressive_strength_mpa, "MPa"))
 if rankine_constant_dimensionless is not None:
@@ -402,11 +638,16 @@ if rankine_constant_dimensionless is not None:
 if yield_stress_mpa is not None:
     raw_inputs.append(("Yield stress sigma_y", yield_stress_mpa, "MPa"))
 
-input_errors = []
+input_errors = list(material_input_errors)
 for input_name, input_value, unit in raw_inputs:
     if input_value is not None:
         try:
-            validate_positive_finite(input_name, input_value, unit)
+            if input_name == "Young's modulus E":
+                validate_youngs_modulus_gpa(input_name, input_value)
+            elif input_name == "Factor of safety":
+                validate_factor_of_safety(input_name, input_value)
+            else:
+                validate_positive_finite(input_name, input_value, unit)
         except ValueError as error:
             input_errors.append(str(error))
 
@@ -430,14 +671,18 @@ if not input_errors and engineering_inputs:
     except ValueError as error:
         input_errors.append(str(error))
 
+geometry_input_names = ("Column length",) + tuple(
+    input_label for _, input_label in section_dimension_specs
+)
 geometry_input_errors = [
     error
     for error in input_errors
-    if any(error.startswith(name) for name in ("Column length", "Diameter", "Width", "Height"))
+    if error.startswith(geometry_input_names)
 ]
 
 calculate_clicked = st.button("Calculate", type="primary", key="calculate_column")
-if not calculate_clicked:
+material_recalculate = st.session_state.pop("material_recalculate", False)
+if not calculate_clicked and not material_recalculate:
     st.info("Results clear when an input changes. Select Calculate to update the analysis.")
     st.stop()
 
@@ -452,8 +697,10 @@ if geometry_input_errors:
     st.error("Not calculated — invalid geometry input. Correct the errors above before calculating section properties.")
 else:
     geometry_is_complete = column_length_mm is not None and (
-        (section_type == "Solid circular" and diameter_mm is not None)
-        or (section_type == "Rectangular" and width_mm is not None and height_mm is not None)
+        all(
+            section_dimensions_mm[input_key] is not None
+            for input_key, _ in section_dimension_specs
+        )
     )
 
     if not geometry_is_complete:
@@ -461,10 +708,15 @@ else:
     else:
         try:
             column_length_m = column_length_mm / 1000
-            if section_type == "Solid circular":
-                section_properties = solid_circular_section(diameter_mm / 1000)
-            else:
-                section_properties = rectangular_section(width_mm / 1000, height_mm / 1000)
+            section_dimensions_m = {
+                input_key.removesuffix("_mm"): dimension_value_mm / 1000
+                for input_key, dimension_value_mm in section_dimensions_mm.items()
+                if dimension_value_mm is not None
+            }
+            section_properties = _create_section_properties(
+                section_type,
+                section_dimensions_m,
+            )
 
             effective_length_m = effective_length(column_length_m, end_condition)
             least_radius_of_gyration_m = radius_of_gyration(section_properties)
@@ -488,19 +740,70 @@ else:
             st.markdown("### Column Properties")
             property_columns = st.columns(3)
             property_columns[0].metric("Area", format_engineering_value(section_properties.area_m2, "m²"))
-            property_columns[1].metric("Second moment I_x", format_engineering_value(section_properties.second_moment_x_m4, "m⁴"))
-            property_columns[2].metric("Second moment I_y", format_engineering_value(section_properties.second_moment_y_m4, "m⁴"))
+            property_columns[1].metric(
+                "Centroid x̄",
+                format_engineering_value(section_properties.centroid_x_m, "m"),
+            )
+            property_columns[2].metric(
+                "Centroid ȳ",
+                format_engineering_value(section_properties.centroid_y_m, "m"),
+            )
 
             property_columns = st.columns(3)
             property_columns[0].metric(
-                f"Second moment I_min (weaker axis: {section_properties.weaker_axis})",
-                format_engineering_value(section_properties.minimum_second_moment_m4, "m⁴"),
+                "Second moment Ixx",
+                format_engineering_value(
+                    section_properties.second_moment_x_m4,
+                    "m⁴",
+                ),
             )
+            property_columns[1].metric(
+                "Second moment Iyy",
+                format_engineering_value(
+                    section_properties.second_moment_y_m4,
+                    "m⁴",
+                ),
+            )
+            property_columns[2].metric(
+                "Product of inertia Ixy",
+                format_engineering_value(
+                    section_properties.product_of_inertia_xy_m4,
+                    "m⁴",
+                ),
+            )
+
+            property_columns = st.columns(3)
+            property_columns[0].metric(
+                "Principal second moment I1",
+                format_engineering_value(
+                    section_properties.principal_second_moment_1_m4,
+                    "m⁴",
+                ),
+            )
+            property_columns[1].metric(
+                "Principal second moment I2",
+                format_engineering_value(
+                    section_properties.principal_second_moment_2_m4,
+                    "m⁴",
+                ),
+            )
+            property_columns[2].metric(
+                f"Second moment I_min (weaker axis: {section_properties.weaker_axis})",
+                format_engineering_value(
+                    section_properties.minimum_second_moment_m4,
+                    "m⁴",
+                ),
+            )
+
+            property_columns = st.columns(2)
             property_columns[1].metric(
                 "Least radius of gyration k",
                 format_engineering_value(least_radius_of_gyration_m, "m"),
             )
-            property_columns[2].metric("Effective length Le", format_engineering_value(effective_length_m, "m"))
+            property_columns[0].metric(
+                "Effective length Le",
+                format_engineering_value(effective_length_m, "m"),
+            )
 
             property_columns = st.columns(2)
             property_columns[0].metric("Slenderness ratio Le/k", f"{slenderness_ratio_value:,.6g}")
@@ -547,13 +850,13 @@ else:
                     rankine_message = f"Calculation error — {error}"
 
             johnson_load_n = None
-            if youngs_modulus_gpa is None or yield_stress_mpa is None:
-                johnson_message = "Not calculated — missing required input: Young's modulus E and course-defined yield stress."
-            elif any(
+            if any(
                 error.startswith(("Young's modulus E", "Yield stress sigma_y"))
                 for error in input_errors
             ):
                 johnson_message = "Not calculated — invalid input: Young's modulus and yield stress must be positive and finite."
+            elif youngs_modulus_gpa is None or yield_stress_mpa is None:
+                johnson_message = "Not calculated — missing required input: Young's modulus E and course-defined yield stress."
             else:
                 try:
                     johnson_load_n = johnson_critical_load(

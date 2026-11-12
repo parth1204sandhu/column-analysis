@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from math import isfinite, pi, sqrt
 from pathlib import Path
 
-from column_analysis.validation import ApplicabilityStatus, TheoryName, validate_positive_finite
+from column_analysis.validation import (
+    ApplicabilityStatus,
+    TheoryName,
+    validate_positive_finite,
+    validate_youngs_modulus_gpa,
+)
 
 
 _CRITERIA_PATH = Path(__file__).with_name("applicability_criteria.json")
@@ -307,7 +312,10 @@ def recommend_theory(
         ("applied_load_kn", applied_load_kn, "kN"),
     ):
         if value is not None:
-            validate_positive_finite(name, value, unit)
+            if name == "youngs_modulus_gpa":
+                validate_youngs_modulus_gpa(name, value)
+            else:
+                validate_positive_finite(name, value, unit)
 
     resolved_criteria = criteria or load_applicability_criteria()
     _validate_criteria(resolved_criteria)

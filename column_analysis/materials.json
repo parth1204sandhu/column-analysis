@@ -1,147 +1,318 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "materials": [
     {
-      "id": "structural-steel-s275",
-      "material": "Structural Steel",
-      "grade": "S275 hot-rolled steel",
-      "notes": "The yield strength is the specified minimum for nominal product thickness up to 16 mm. Verify the actual product standard and thickness; the specified minimum decreases for thicker sections.",
+      "id": "generic-softwood",
+      "material": "Generic Softwood",
+      "notes": "Representative clear pine-group properties at 12% moisture content, parallel to grain. Actual properties vary with species, moisture, defects, and grade. These values are not structural timber design values; perpendicular-to-grain behavior and full timber design checks are not modeled.",
       "properties": {
         "youngs_modulus_gpa": {
-          "value": 205.0,
+          "value": 11.1,
           "unit": "GPa",
-          "source": "AZoM, AISI 4140 Alloy Steel (typical modulus for steel)",
-          "source_url": "https://www.azom.com/article.aspx?ArticleID=6116",
-          "notes": "Typical steel elastic modulus; this is not an S275 product-specific test value."
+          "source": "EngineeringToolbox, Wood, Panel and Structural Timber Products - Mechanical Properties",
+          "source_url": "https://www.engineeringtoolbox.com/timber-mechanical-properties-d_1789.html",
+          "notes": "Midpoint of the reported 8.5–13.7 GPa modulus range for the Eastern White, Jack, Loblolly, Lodgepole, Longleaf, and Pitch pine group; clear wood at 12% moisture content, longitudinal (parallel to grain)."
         },
         "compressive_strength_mpa": {
+          "value": 41.2,
+          "unit": "MPa",
+          "source": "EngineeringToolbox, Wood, Panel and Structural Timber Products - Mechanical Properties",
+          "source_url": "https://www.engineeringtoolbox.com/timber-mechanical-properties-d_1789.html",
+          "notes": "Midpoint of the reported 33.1–49.2 MPa compressive-strength range for the listed pine group; clear wood at 12% moisture content, parallel to grain. Not an allowable design stress."
+        },
+        "yield_stress_mpa": {
           "value": null,
           "unit": "MPa",
           "source": null,
           "source_url": null,
-          "notes": "No verified crushing strength is supplied. Do not substitute tensile yield strength for this Rankine input."
-        },
-        "yield_stress_mpa": {
-          "value": 275.0,
-          "unit": "MPa",
-          "source": "SteelConstruction.info, Steel material properties (BS EN 10025-2)",
-          "source_url": "https://steelconstruction.info/topics/design/steel-material-properties/",
-          "notes": "Specified minimum tensile yield strength for S275 hot-rolled products up to 16 mm nominal thickness."
+          "notes": "A ductile-metal yield stress is not an appropriate generic wood property; no yield strength is supplied for Johnson theory."
         },
         "rankine_constant_dimensionless": {
           "value": null,
           "unit": "dimensionless",
           "source": null,
           "source_url": null,
-          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+          "notes": "No universal Rankine constant and matching project convention are established for this representative wood model."
         }
       }
     },
     {
-      "id": "stainless-steel-304-annealed",
+      "id": "generic-hardwood",
+      "material": "Generic Hardwood",
+      "notes": "Representative clear red-oak-group properties at 12% moisture content, parallel to grain. Actual properties vary with species, moisture, defects, and grade. These values are not structural timber design values; perpendicular-to-grain behavior and full timber design checks are not modeled.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 11.7,
+          "unit": "GPa",
+          "source": "EngineeringToolbox, Wood, Panel and Structural Timber Products - Mechanical Properties",
+          "source_url": "https://www.engineeringtoolbox.com/timber-mechanical-properties-d_1789.html",
+          "notes": "Midpoint of the reported 10.3–13.1 GPa modulus range for the listed red-oak group; clear wood at 12% moisture content, longitudinal (parallel to grain)."
+        },
+        "compressive_strength_mpa": {
+          "value": 51.2,
+          "unit": "MPa",
+          "source": "EngineeringToolbox, Wood, Panel and Structural Timber Products - Mechanical Properties",
+          "source_url": "https://www.engineeringtoolbox.com/timber-mechanical-properties-d_1789.html",
+          "notes": "Midpoint of the reported 42.0–60.3 MPa compressive-strength range for the listed red-oak group; clear wood at 12% moisture content, parallel to grain. Not an allowable design stress."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "A ductile-metal yield stress is not an appropriate generic wood property; no yield strength is supplied for Johnson theory."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "No universal Rankine constant and matching project convention are established for this representative wood model."
+        }
+      }
+    },
+    {
+      "id": "cast-iron",
+      "material": "Cast Iron",
+      "notes": "Young's modulus is representative of grey cast iron. Cast irons are a family of brittle materials; no ductile yield strength is assumed. The selected modulus and missing strength values are not a design-grade specification.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 130.0,
+          "unit": "GPa",
+          "source": "EngineeringToolbox, Young's Modulus of Elasticity - Values for Common Materials",
+          "source_url": "https://www.engineeringtoolbox.com/young-modulus-d_417.html",
+          "notes": "Reported value for grey cast iron; representative only because cast-iron type and microstructure affect stiffness."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic compressive-strength value is supplied; cast-iron type and specification are required."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "Cast iron is not modeled as a ductile material with an assumed yield strength; Johnson theory is unavailable."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "No universal Rankine constant and matching project convention are established for generic cast iron."
+        }
+      }
+    },
+    {
+      "id": "brass",
+      "material": "Brass",
+      "notes": "Representative elastic modulus derived from the published range for brass. Brass composition, processing, and temper affect its mechanical strengths; no strength value is inferred for this generic entry.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 113.5,
+          "unit": "GPa",
+          "source": "EngineeringToolbox, Young's Modulus of Elasticity - Values for Common Materials",
+          "source_url": "https://www.engineeringtoolbox.com/young-modulus-d_417.html",
+          "notes": "Arithmetic midpoint of the reported 102–125 GPa range for brass; representative only and not a grade-specific value."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic compressive-strength value is supplied; brass composition and temper are unspecified."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic yield strength is supplied because brass composition and temper are unspecified."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "No universal Rankine constant and matching project convention are established for generic brass."
+        }
+      }
+    },
+    {
+      "id": "bronze",
+      "material": "Bronze",
+      "notes": "Representative elastic modulus derived from the published range for bronze. Bronze composition and processing affect its mechanical strengths; no strength value is inferred for this generic entry.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 108.0,
+          "unit": "GPa",
+          "source": "EngineeringToolbox, Young's Modulus of Elasticity - Values for Common Materials",
+          "source_url": "https://www.engineeringtoolbox.com/young-modulus-d_417.html",
+          "notes": "Arithmetic midpoint of the reported 96–120 GPa range for bronze; representative only and not a grade-specific value."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic compressive-strength value is supplied; bronze composition and condition are unspecified."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic yield strength is supplied because bronze composition and condition are unspecified."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "No universal Rankine constant and matching project convention are established for generic bronze."
+        }
+      }
+    },
+    {
+      "id": "copper",
+      "material": "Copper",
+      "notes": "Representative elastic modulus for copper. Copper strength depends strongly on product condition and temper; no yield or compressive strength is inferred.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 117.0,
+          "unit": "GPa",
+          "source": "EngineeringToolbox, Young's Modulus of Elasticity - Values for Common Materials",
+          "source_url": "https://www.engineeringtoolbox.com/young-modulus-d_417.html",
+          "notes": "Reported representative elastic modulus for copper; use as a generic stiffness value, not as a condition-specific property."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic compressive-strength value is supplied; copper product condition is unspecified."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic yield strength is supplied because copper product form and temper are unspecified."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "No universal Rankine constant and matching project convention are established for generic copper."
+        }
+      }
+    },
+    {
+      "id": "aluminium",
+      "material": "Aluminium",
+      "notes": "Representative elastic modulus for aluminium. Aluminium strength depends on alloy, product form, and temper; no strength value is inferred for this generic entry.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 69.0,
+          "unit": "GPa",
+          "source": "EngineeringToolbox, Young's Modulus of Elasticity - Values for Common Materials",
+          "source_url": "https://www.engineeringtoolbox.com/young-modulus-d_417.html",
+          "notes": "Reported representative modulus for aluminium; use as a generic stiffness value, not as an alloy- or temper-specific property."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic compressive-strength value is supplied; alloy and temper are unspecified."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No generic yield strength is supplied because alloy, product form, and temper are unspecified."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "No universal Rankine constant and matching project convention are established for generic aluminium."
+        }
+      }
+    },
+    {
+      "id": "stainless-steel",
       "material": "Stainless Steel",
-      "grade": "304 annealed flat-rolled product",
-      "notes": "Yield strength applies to annealed Grade 304 flat-rolled product under ASTM A240/A240M. Verify the supplied product form and specification.",
+      "notes": "Representative elastic modulus for annealed austenitic Grade 304 stainless steel. Stainless families and product conditions differ; this is not a universal stainless-steel strength specification.",
       "properties": {
         "youngs_modulus_gpa": {
           "value": 193.0,
           "unit": "GPa",
           "source": "AZoM, Stainless Steel - Grade 304",
           "source_url": "https://www.azom.com/article.aspx?ArticleID=965",
-          "notes": "Elastic modulus reported for Grade 304/L/H in the annealed condition."
+          "notes": "Reported elastic modulus for annealed Grade 304/L/H; used only as a representative modulus for this generic option."
         },
         "compressive_strength_mpa": {
           "value": null,
           "unit": "MPa",
           "source": null,
           "source_url": null,
-          "notes": "No verified crushing strength is supplied. Do not substitute tensile yield strength for this Rankine input."
+          "notes": "No universal compressive-strength value is supplied; stainless grade and product condition are unspecified."
         },
         "yield_stress_mpa": {
-          "value": 205.0,
+          "value": null,
           "unit": "MPa",
-          "source": "AZoM, Stainless Steel - Grade 304 (ASTM A240/A240M flat-rolled)",
-          "source_url": "https://www.azom.com/article.aspx?ArticleID=965",
-          "notes": "Minimum 0.2% proof strength for Grade 304 flat-rolled product."
+          "source": null,
+          "source_url": null,
+          "notes": "No generic yield strength is supplied because stainless family, grade, product form, and condition are unspecified."
         },
         "rankine_constant_dimensionless": {
           "value": null,
           "unit": "dimensionless",
           "source": null,
           "source_url": null,
-          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+          "notes": "No universal Rankine constant and matching project convention are established for generic stainless steel."
         }
       }
     },
     {
-      "id": "aluminium-6061-t6",
-      "material": "Aluminium Alloy 6061-T6",
-      "grade": "6061-T6",
-      "notes": "The cited 6061 datasheet reports elastic modulus for alloy 6061 but does not tie its yield-strength value to a product temper. The yield strength is therefore intentionally unavailable rather than inferred for T6.",
+      "id": "structural-steel",
+      "material": "Structural Steel",
+      "notes": "Representative elastic modulus only. Structural steel yield strength depends on product standard, grade, and thickness; this generic option does not imply a design strength.",
       "properties": {
         "youngs_modulus_gpa": {
-          "value": 68.9,
+          "value": 200.0,
           "unit": "GPa",
-          "source": "AZoM, Aluminium / Aluminum 6061 Alloy",
-          "source_url": "https://www.azom.com/article.aspx?ArticleID=6636",
-          "notes": "Elastic modulus reported for alloy 6061; the source does not specify temper."
+          "source": "EngineeringToolbox, Young's Modulus of Elasticity - Values for Common Materials",
+          "source_url": "https://www.engineeringtoolbox.com/young-modulus-d_417.html",
+          "notes": "Reported elastic modulus for ASTM A36 structural steel; used as a representative structural-steel modulus, not as a grade designation."
         },
         "compressive_strength_mpa": {
           "value": null,
           "unit": "MPa",
           "source": null,
           "source_url": null,
-          "notes": "No verified crushing strength for 6061-T6 is supplied. Do not substitute tensile yield strength for this Rankine input."
+          "notes": "No generic crushing strength is supplied. Do not substitute tensile yield strength for Rankine input."
         },
         "yield_stress_mpa": {
           "value": null,
           "unit": "MPa",
-          "source": "AZoM, Aluminium / Aluminum 6061 Alloy",
-          "source_url": "https://www.azom.com/article.aspx?ArticleID=6636",
-          "notes": "The source lists a yield strength but does not identify the temper; obtain a 6061-T6 product-specific source before using yield strength."
+          "source": null,
+          "source_url": null,
+          "notes": "No generic yield strength is supplied because structural-steel grade, product standard, and thickness are unspecified."
         },
         "rankine_constant_dimensionless": {
           "value": null,
           "unit": "dimensionless",
           "source": null,
           "source_url": null,
-          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
-        }
-      }
-    },
-    {
-      "id": "copper-c11000",
-      "material": "Copper",
-      "grade": "C11000 (temper not specified)",
-      "notes": "C11000 includes multiple product forms and tempers. The Copper Development Association listing does not provide a yield-strength value for its H02 flat-product entry, so no yield or compressive strength is assumed.",
-      "properties": {
-        "youngs_modulus_gpa": {
-          "value": null,
-          "unit": "GPa",
-          "source": null,
-          "source_url": null,
-          "notes": "No verified elastic modulus for the selected C11000 product condition is supplied."
-        },
-        "compressive_strength_mpa": {
-          "value": null,
-          "unit": "MPa",
-          "source": null,
-          "source_url": null,
-          "notes": "No verified crushing strength for the selected C11000 product condition is supplied. Do not substitute tensile strength."
-        },
-        "yield_stress_mpa": {
-          "value": null,
-          "unit": "MPa",
-          "source": "Copper Development Association, C11000 Alloy",
-          "source_url": "https://alloys.copper.org/alloy/C11000",
-          "notes": "The listing's H02 flat-products row has no 0.5% extension yield value; no yield strength is assumed for the unspecified product condition."
-        },
-        "rankine_constant_dimensionless": {
-          "value": null,
-          "unit": "dimensionless",
-          "source": null,
-          "source_url": null,
-          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+          "notes": "No universal Rankine constant and matching project convention are established for generic structural steel."
         }
       }
     }

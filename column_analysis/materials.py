@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from math import isfinite
 from pathlib import Path
 
+from column_analysis.validation import (
+    validate_positive_finite,
+    validate_youngs_modulus_gpa,
+)
+
 
 _DATABASE_PATH = Path(__file__).with_name("materials.json")
 _PROPERTY_UNITS = {
@@ -28,13 +33,13 @@ class MaterialProperty:
 
 @dataclass(frozen=True)
 class MaterialGrade:
-    """Material identity, grade notes, and its available property data."""
+    """Material identity, notes, and its available property data."""
 
     material_id: str
     material: str
-    grade: str
     notes: str
     properties: dict[str, MaterialProperty]
+    grade: str | None = None
 
     @property
     def display_name(self) -> str:
@@ -42,23 +47,91 @@ class MaterialGrade:
         return self.material
 
 
+def create_custom_material(
+    name: str,
+    *,
+    youngs_modulus_gpa: float | None,
+    yield_stress_mpa: float | None = None,
+    compressive_strength_mpa: float | None = None,
+    rankine_constant_dimensionless: float | None = None,
+) -> MaterialGrade:
+    """Create a validated custom material with optional strengths and Rankine data."""
+    if not isinstance(name, str) or not name.strip():
+        raise ValueError("Custom material name must not be empty.")
+    if youngs_modulus_gpa is None:
+        raise ValueError("Young's modulus E is required for a custom material.")
+
+    values = {
+        "youngs_modulus_gpa": youngs_modulus_gpa,
+        "yield_stress_mpa": yield_stress_mpa,
+        "compressive_strength_mpa": compressive_strength_mpa,
+        "rankine_constant_dimensionless": rankine_constant_dimensionless,
+    }
+    for property_name, value in values.items():
+        if value is not None:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(
+                    f"{property_name} must be a positive finite number in "
+                    f"{_PROPERTY_UNITS[property_name]}."
+                )
+            if property_name == "youngs_modulus_gpa":
+                validate_youngs_modulus_gpa(property_name, value)
+            else:
+                validate_positive_finite(
+                    property_name,
+                    value,
+                    _PROPERTY_UNITS[property_name],
+                )
+
+    properties = {
+        property_name: MaterialProperty(
+            value=value,
+            unit=_PROPERTY_UNITS[property_name],
+            source="User-entered" if value is not None else None,
+            source_url=None,
+            notes=(
+                "User-entered value; verify its source, units, and applicability."
+                if value is not None
+                else "Not supplied; no value is assumed."
+            ),
+        )
+        for property_name, value in values.items()
+    }
+    return MaterialGrade(
+        material_id="custom-material",
+        material=name.strip(),
+        notes=(
+            "Custom material properties entered by the user. Verify the source, "
+            "material behavior, units, and applicability before relying on results."
+        ),
+        properties=properties,
+    )
+
+
 def load_material_database() -> dict[str, MaterialGrade]:
     """Load and validate the versioned local material database."""
     data = json.loads(_DATABASE_PATH.read_text(encoding="utf-8"))
-    if not isinstance(data, dict) or data.get("schema_version") != 1:
-        raise ValueError(f"{_DATABASE_PATH} must use material database schema version 1.")
+    if not isinstance(data, dict) or data.get("schema_version") != 2:
+        raise ValueError(f"{_DATABASE_PATH} must use material database schema version 2.")
 
     entries = data.get("materials")
     if not isinstance(entries, list):
         raise ValueError(f"{_DATABASE_PATH} must contain a materials list.")
-    expected_names = {
-        "Structural Steel",
-        "Stainless Steel",
-        "Aluminium Alloy 6061-T6",
+    expected_names = (
+        "Generic Softwood",
+        "Generic Hardwood",
+        "Cast Iron",
+        "Brass",
+        "Bronze",
         "Copper",
-    }
+        "Aluminium",
+        "Stainless Steel",
+        "Structural Steel",
+    )
     if len(entries) != len(expected_names):
-        raise ValueError("The material database must contain exactly four materials.")
+        raise ValueError(
+            "The material database must contain exactly nine standard materials."
+        )
 
     materials: dict[str, MaterialGrade] = {}
     for entry in entries:
@@ -66,7 +139,7 @@ def load_material_database() -> dict[str, MaterialGrade]:
             raise ValueError("Each material database entry must be an object.")
 
         material_id = entry.get("id")
-        for field in ("id", "material", "grade", "notes"):
+        for field in ("id", "material", "notes"):
             if not isinstance(entry.get(field), str) or not entry[field].strip():
                 raise ValueError(f"Each material entry must have a non-empty {field!r}.")
         if material_id in materials:
@@ -134,7 +207,6 @@ def load_material_database() -> dict[str, MaterialGrade]:
         materials[material_id] = MaterialGrade(
             material_id=material_id,
             material=entry["material"],
-            grade=entry["grade"],
             notes=entry["notes"],
             properties=properties,
         )
@@ -142,10 +214,7 @@ def load_material_database() -> dict[str, MaterialGrade]:
     display_names = [material.display_name for material in materials.values()]
     if len(display_names) != len(set(display_names)):
         raise ValueError("Material display names must be unique.")
-    if set(display_names) != expected_names:
-        raise ValueError(
-            "The material database must contain Structural Steel, Stainless Steel, "
-            "Aluminium Alloy 6061-T6, and Copper."
-        )
+    if tuple(display_names) != expected_names:
+        raise ValueError("Standard material names must appear in the required order.")
 
     return materials

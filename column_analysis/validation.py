@@ -18,6 +18,8 @@ _ENGINEERING_INPUT_UNITS = {
     "factor_of_safety": "dimensionless",
     "rankine_constant_dimensionless": "dimensionless",
 }
+MAX_YOUNGS_MODULUS_GPA = 2000.0
+MAX_YOUNGS_MODULUS_PA = MAX_YOUNGS_MODULUS_GPA * 1e9
 
 
 class TheoryName(str, Enum):
@@ -59,6 +61,32 @@ def validate_positive_finite(name: str, value: float, unit: str) -> None:
     raise ValueError(f"{name} must be a finite, strictly positive value in {unit}.")
 
 
+def validate_youngs_modulus_gpa(name: str, value: float) -> None:
+    """Validate E against a broad screening ceiling for engineering materials.
+
+    The ceiling is above the cited common-material table's values for diamond
+    (1,220 GPa) and single-walled carbon nanotubes (1,000 GPa). It is a unit-
+    entry sanity check, not a universal physical limit. Any finite positive E
+    below the ceiling remains allowed.
+    """
+    validate_positive_finite(name, value, "GPa")
+    if value > MAX_YOUNGS_MODULUS_GPA:
+        raise ValueError(
+            f"{name} must not exceed {MAX_YOUNGS_MODULUS_GPA:g} GPa "
+            "(the broad engineering-material screening limit)."
+        )
+
+
+def validate_factor_of_safety(name: str, value: float) -> None:
+    """Require a conventional factor of safety strictly greater than one."""
+    validate_positive_finite(name, value, "dimensionless")
+    if value <= 1:
+        raise ValueError(
+            f"{name} must be greater than 1.0 for this application's "
+            "conventional factor-of-safety calculation."
+        )
+
+
 def validate_engineering_inputs(inputs: Mapping[str, float]) -> None:
     """Validate supplied engineering inputs using their expected SI units.
 
@@ -76,7 +104,17 @@ def validate_engineering_inputs(inputs: Mapping[str, float]) -> None:
         except KeyError:
             raise ValueError(f"Unsupported engineering input {name!r}.") from None
 
-        validate_positive_finite(name, value, unit)
+        if name == "youngs_modulus_pa":
+            validate_positive_finite(name, value, unit)
+            if value > MAX_YOUNGS_MODULUS_PA:
+                raise ValueError(
+                    f"{name} must not exceed {MAX_YOUNGS_MODULUS_PA:g} Pa "
+                    f"({MAX_YOUNGS_MODULUS_GPA:g} GPa)."
+                )
+        elif name == "factor_of_safety":
+            validate_factor_of_safety(name, value)
+        else:
+            validate_positive_finite(name, value, unit)
 
 
 def assess_theory_applicability(

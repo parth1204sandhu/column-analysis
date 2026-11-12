@@ -9,7 +9,17 @@ from column_analysis.properties import (
     radius_of_gyration,
     slenderness_ratio,
 )
-from column_analysis.sections import SectionProperties, rectangular_section, solid_circular_section
+from column_analysis.sections import (
+    SectionProperties,
+    angle_section,
+    channel_section,
+    hollow_circular_section,
+    hollow_rectangular_section,
+    i_section,
+    rectangular_section,
+    solid_circular_section,
+    t_section,
+)
 
 
 @pytest.mark.parametrize(
@@ -61,6 +71,99 @@ def test_rectangular_radius_uses_weaker_axis() -> None:
 
     assert properties.weaker_axis == "y"
     assert radius_of_gyration(properties) == pytest.approx(width_m / sqrt(12))
+
+
+def test_hollow_circular_radius_of_gyration_matches_annulus_formula() -> None:
+    outer_diameter_m = 0.08
+    inner_diameter_m = 0.06
+    properties = hollow_circular_section(outer_diameter_m, inner_diameter_m)
+
+    expected_radius_m = sqrt(
+        (outer_diameter_m**2 + inner_diameter_m**2) / 16
+    )
+    assert radius_of_gyration(properties) == pytest.approx(expected_radius_m)
+
+
+def test_hollow_rectangular_radius_uses_weaker_axis() -> None:
+    outer_width_m = 0.08
+    outer_height_m = 0.12
+    wall_thickness_m = 0.005
+    inner_width_m = outer_width_m - 2 * wall_thickness_m
+    inner_height_m = outer_height_m - 2 * wall_thickness_m
+    area_m2 = (
+        outer_width_m * outer_height_m - inner_width_m * inner_height_m
+    )
+    second_moment_y_m4 = (
+        outer_height_m * outer_width_m**3
+        - inner_height_m * inner_width_m**3
+    ) / 12
+    properties = hollow_rectangular_section(
+        outer_width_m,
+        outer_height_m,
+        wall_thickness_m,
+    )
+
+    assert properties.weaker_axis == "y"
+    assert radius_of_gyration(properties) == pytest.approx(
+        sqrt(second_moment_y_m4 / area_m2)
+    )
+
+
+def test_i_section_radius_of_gyration_uses_weaker_composite_axis() -> None:
+    properties = i_section(
+        overall_depth_m=0.2,
+        flange_width_m=0.1,
+        web_thickness_m=0.01,
+        flange_thickness_m=0.015,
+    )
+
+    assert properties.weaker_axis == "y"
+    assert properties.minimum_second_moment_m4 == pytest.approx(
+        2.514166666666667e-6
+    )
+    assert radius_of_gyration(properties) == pytest.approx(0.02312853384921285)
+
+
+def test_channel_radius_uses_weaker_principal_moment() -> None:
+    properties = channel_section(
+        overall_depth_m=0.2,
+        flange_width_m=0.08,
+        web_thickness_m=0.01,
+        flange_thickness_m=0.015,
+    )
+
+    assert properties.product_of_inertia_xy_m4 == pytest.approx(0.0, abs=1e-18)
+    assert radius_of_gyration(properties) == pytest.approx(0.02475830019437467)
+
+
+def test_angle_radius_uses_minimum_principal_moment_not_minimum_axis_moment() -> None:
+    properties = angle_section(
+        horizontal_leg_m=0.08,
+        vertical_leg_m=0.1,
+        thickness_m=0.01,
+    )
+
+    assert properties.product_of_inertia_xy_m4 == pytest.approx(-7.411764705882353e-7)
+    assert properties.minimum_second_moment_m4 == pytest.approx(
+        4.890104872544622e-7
+    )
+    assert properties.minimum_second_moment_m4 < min(
+        properties.second_moment_x_m4,
+        properties.second_moment_y_m4,
+    )
+    assert radius_of_gyration(properties) == pytest.approx(0.016960342797147185)
+
+
+def test_t_section_radius_uses_weaker_principal_moment() -> None:
+    properties = t_section(
+        overall_depth_m=0.18,
+        flange_width_m=0.09,
+        web_thickness_m=0.01,
+        flange_thickness_m=0.015,
+    )
+
+    assert properties.product_of_inertia_xy_m4 == pytest.approx(0.0, abs=1e-18)
+    assert radius_of_gyration(properties) == pytest.approx(0.017559422921421236)
 
 
 def test_slenderness_ratio_is_dimensionless() -> None:
