@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "euler_johnson": {
+    "transition_rule": "euler_stress_equals_half_yield",
+    "johnson_minimum_slenderness_ratio": 0.0,
+    "johnson_range_reference": "Classical Johnson parabolic criterion: 0 < lambda < Cc; zero is the mathematical lower limit, not a short-column validation threshold",
+    "johnson_range_reference_url": "https://mechanicalc.com/reference/column-buckling#intermediate-columns",
+    "transition_reference": "MechanicalC, Column Buckling — Slenderness Ratio and Johnson Formula",
+    "transition_reference_url": "https://mechanicalc.com/reference/column-buckling#slenderness-ratio"
+  },
+  "rankine_gordon": {
+    "minimum_slenderness_ratio": null,
+    "maximum_slenderness_ratio": null,
+    "constant_dimensionless": null,
+    "constant_convention": "P_R = sigma_c * A / (1 + a * (Le / k)^2)",
+    "reference": null,
+    "reference_url": null
+  },
+  "preferred_theory_order": []
+}

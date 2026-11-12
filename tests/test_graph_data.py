@@ -56,6 +56,27 @@ def test_non_positive_johnson_values_are_omitted_from_curve() -> None:
     assert curves["Johnson"][1] is None
 
 
+def test_unexpected_johnson_calculation_errors_are_not_silently_omitted(
+    monkeypatch,
+) -> None:
+    section = rectangular_section(width_m=0.05, height_m=0.1)
+
+    def fail_calculation(*args, **kwargs):
+        raise ValueError("unexpected Johnson calculation failure")
+
+    monkeypatch.setattr(
+        "column_analysis.graph_data.johnson_critical_load",
+        fail_calculation,
+    )
+    with pytest.raises(ValueError, match="unexpected Johnson calculation failure"):
+        build_slenderness_curve_data(
+            [20.0],
+            section,
+            youngs_modulus_pa=200e9,
+            yield_stress_pa=250e6,
+        )
+
+
 @pytest.mark.parametrize("ratio", [0.0, -1.0, float("nan"), float("inf")])
 def test_curve_data_rejects_invalid_slenderness_values(ratio: float) -> None:
     section = rectangular_section(width_m=0.05, height_m=0.1)

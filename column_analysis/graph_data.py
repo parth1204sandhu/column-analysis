@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from column_analysis.properties import radius_of_gyration
 from column_analysis.sections import SectionProperties
 from column_analysis.theories import (
+    JohnsonOutOfRangeError,
     euler_critical_load,
     johnson_critical_load,
     rankine_critical_load,
@@ -93,7 +94,7 @@ def build_slenderness_curve_data(
                     effective_length_m,
                     radius_of_gyration_m,
                 )
-            except (ValueError, OverflowError):
+            except JohnsonOutOfRangeError:
                 curve_data["Johnson"].append(None)
             else:
                 curve_data["Johnson"].append(johnson_load_n)

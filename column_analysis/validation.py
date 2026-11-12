@@ -29,10 +29,13 @@ class TheoryName(str, Enum):
 
 
 class ApplicabilityStatus(str, Enum):
-    """A conservative summary that does not imply unverified applicability."""
+    """Theory range and data status used by deterministic recommendations."""
 
+    APPLICABLE = "applicable"
+    OUT_OF_RANGE = "out of range"
     CRITERION_NOT_CONFIGURED = "criterion not configured"
     INPUT_REQUIRED = "input required"
+    INVALID_INPUT = "invalid input"
     PROVISIONAL = "provisional"
 
 

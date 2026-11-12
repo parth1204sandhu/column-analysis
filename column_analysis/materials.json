@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "materials": [
+    {
+      "id": "structural-steel-s275",
+      "material": "Structural Steel",
+      "grade": "S275 hot-rolled steel",
+      "notes": "The yield strength is the specified minimum for nominal product thickness up to 16 mm. Verify the actual product standard and thickness; the specified minimum decreases for thicker sections.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 205.0,
+          "unit": "GPa",
+          "source": "AZoM, AISI 4140 Alloy Steel (typical modulus for steel)",
+          "source_url": "https://www.azom.com/article.aspx?ArticleID=6116",
+          "notes": "Typical steel elastic modulus; this is not an S275 product-specific test value."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No verified crushing strength is supplied. Do not substitute tensile yield strength for this Rankine input."
+        },
+        "yield_stress_mpa": {
+          "value": 275.0,
+          "unit": "MPa",
+          "source": "SteelConstruction.info, Steel material properties (BS EN 10025-2)",
+          "source_url": "https://steelconstruction.info/topics/design/steel-material-properties/",
+          "notes": "Specified minimum tensile yield strength for S275 hot-rolled products up to 16 mm nominal thickness."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+        }
+      }
+    },
+    {
+      "id": "stainless-steel-304-annealed",
+      "material": "Stainless Steel",
+      "grade": "304 annealed flat-rolled product",
+      "notes": "Yield strength applies to annealed Grade 304 flat-rolled product under ASTM A240/A240M. Verify the supplied product form and specification.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 193.0,
+          "unit": "GPa",
+          "source": "AZoM, Stainless Steel - Grade 304",
+          "source_url": "https://www.azom.com/article.aspx?ArticleID=965",
+          "notes": "Elastic modulus reported for Grade 304/L/H in the annealed condition."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No verified crushing strength is supplied. Do not substitute tensile yield strength for this Rankine input."
+        },
+        "yield_stress_mpa": {
+          "value": 205.0,
+          "unit": "MPa",
+          "source": "AZoM, Stainless Steel - Grade 304 (ASTM A240/A240M flat-rolled)",
+          "source_url": "https://www.azom.com/article.aspx?ArticleID=965",
+          "notes": "Minimum 0.2% proof strength for Grade 304 flat-rolled product."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+        }
+      }
+    },
+    {
+      "id": "aluminium-6061-t6",
+      "material": "Aluminium Alloy 6061-T6",
+      "grade": "6061-T6",
+      "notes": "The cited 6061 datasheet reports elastic modulus for alloy 6061 but does not tie its yield-strength value to a product temper. The yield strength is therefore intentionally unavailable rather than inferred for T6.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": 68.9,
+          "unit": "GPa",
+          "source": "AZoM, Aluminium / Aluminum 6061 Alloy",
+          "source_url": "https://www.azom.com/article.aspx?ArticleID=6636",
+          "notes": "Elastic modulus reported for alloy 6061; the source does not specify temper."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No verified crushing strength for 6061-T6 is supplied. Do not substitute tensile yield strength for this Rankine input."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": "AZoM, Aluminium / Aluminum 6061 Alloy",
+          "source_url": "https://www.azom.com/article.aspx?ArticleID=6636",
+          "notes": "The source lists a yield strength but does not identify the temper; obtain a 6061-T6 product-specific source before using yield strength."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+        }
+      }
+    },
+    {
+      "id": "copper-c11000",
+      "material": "Copper",
+      "grade": "C11000 (temper not specified)",
+      "notes": "C11000 includes multiple product forms and tempers. The Copper Development Association listing does not provide a yield-strength value for its H02 flat-product entry, so no yield or compressive strength is assumed.",
+      "properties": {
+        "youngs_modulus_gpa": {
+          "value": null,
+          "unit": "GPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No verified elastic modulus for the selected C11000 product condition is supplied."
+        },
+        "compressive_strength_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": null,
+          "source_url": null,
+          "notes": "No verified crushing strength for the selected C11000 product condition is supplied. Do not substitute tensile strength."
+        },
+        "yield_stress_mpa": {
+          "value": null,
+          "unit": "MPa",
+          "source": "Copper Development Association, C11000 Alloy",
+          "source_url": "https://alloys.copper.org/alloy/C11000",
+          "notes": "The listing's H02 flat-products row has no 0.5% extension yield value; no yield strength is assumed for the unspecified product condition."
+        },
+        "rankine_constant_dimensionless": {
+          "value": null,
+          "unit": "dimensionless",
+          "source": null,
+          "source_url": null,
+          "notes": "Not a universal material property. Obtain the value and convention from the applicable course/reference."
+        }
+      }
+    }
+  ]
+}

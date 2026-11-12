@@ -3,6 +3,10 @@
 from math import isfinite, pi
 
 
+class JohnsonOutOfRangeError(ValueError):
+    """Johnson's formula has no positive critical stress for these inputs."""
+
+
 def _validate_positive_finite(name: str, value: float, unit: str) -> None:
     """Require a finite, strictly positive input with the given unit."""
     if not isfinite(value) or value <= 0:
@@ -49,8 +53,9 @@ def rankine_critical_load(
     gyration in metres. For this form, ``a`` must be dimensionless because
     ``Le / k`` is dimensionless. Supply the empirical constant explicitly
     from the selected course or reference; no universal value is assumed.
-    If that reference uses a different convention or notation, confirm it
-    before applying this function.
+    If that reference uses a different convention or notation, convert it
+    explicitly before applying this function; the input is not converted
+    from another convention here.
     """
     _validate_positive_finite("compressive_strength_pa", compressive_strength_pa, "Pa")
     _validate_positive_finite("area_m2", area_m2, "m^2")
@@ -100,7 +105,7 @@ def johnson_critical_load(
     critical_stress_pa = yield_stress_pa * (1 - reduction_fraction)
 
     if not isfinite(critical_stress_pa) or critical_stress_pa <= 0:
-        raise ValueError(
+        raise JohnsonOutOfRangeError(
             "Johnson critical stress is non-positive or non-finite; "
             "the formula is outside its meaningful range for these inputs."
         )

@@ -1,5 +1,9 @@
+from math import pi, sqrt
+
 import pytest
 
+from column_analysis.properties import EndCondition, effective_length, radius_of_gyration
+from column_analysis.sections import solid_circular_section
 from column_analysis.theories import (
     euler_critical_load,
     johnson_critical_load,
@@ -28,6 +32,21 @@ def test_euler_result_uses_si_inputs_and_returns_newtons() -> None:
     )
 
     assert load_n == pytest.approx(9_869.604401089358)
+
+
+def test_euler_regression_for_50_mm_diameter_3000_mm_pinned_column() -> None:
+    section = solid_circular_section(0.05)
+    effective_length_m = effective_length(3.0, EndCondition.PINNED_PINNED)
+
+    assert section.area_m2 == pytest.approx(1.963495408493621e-3)
+    assert section.minimum_second_moment_m4 == pytest.approx(3.067961575771282e-7)
+    assert radius_of_gyration(section) == pytest.approx(0.0125)
+    assert effective_length_m == pytest.approx(3.0)
+    assert euler_critical_load(
+        200e9,
+        section.minimum_second_moment_m4,
+        effective_length_m,
+    ) == pytest.approx(67_287.9268236)
 
 
 def test_euler_load_increases_proportionally_with_modulus() -> None:
@@ -214,3 +233,28 @@ def test_johnson_rejects_non_positive_critical_stress() -> None:
             effective_length_m=2.0,
             least_radius_of_gyration_m=0.01,
         )
+
+
+def test_euler_and_johnson_predictions_meet_at_transition_slenderness() -> None:
+    youngs_modulus_pa = 205e9
+    yield_stress_pa = 275e6
+    section = solid_circular_section(0.02)
+    radius_m = radius_of_gyration(section)
+    transition_ratio = sqrt(2 * pi**2 * youngs_modulus_pa / yield_stress_pa)
+    effective_length_m = transition_ratio * radius_m
+
+    euler_load_n = euler_critical_load(
+        youngs_modulus_pa,
+        section.minimum_second_moment_m4,
+        effective_length_m,
+    )
+    johnson_load_n = johnson_critical_load(
+        yield_stress_pa,
+        youngs_modulus_pa,
+        section.area_m2,
+        effective_length_m,
+        radius_m,
+    )
+
+    assert johnson_load_n == pytest.approx(euler_load_n, rel=1e-12)
+    assert euler_load_n == pytest.approx(section.area_m2 * yield_stress_pa / 2)
