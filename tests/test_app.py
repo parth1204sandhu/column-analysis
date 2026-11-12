@@ -78,6 +78,68 @@ def test_200_mm_pinned_circular_column_has_200_mm_effective_length() -> None:
     assert metrics["Euler critical load"] == "387.58 kN"
 
 
+def test_default_column_classification_uses_material_specific_properties() -> None:
+    app = _calculate(_app_with_circle())
+
+    assert any(item.value == "### Column Classification" for item in app.markdown)
+    metrics = _metric_values(app)
+    assert metrics["Classification"] == "Short"
+    assert metrics["Current slenderness ratio"] == "40 dimensionless"
+    assert any("SHORT COLUMN" in item.value for item in app.success)
+    assert any(
+        "mechanicalc.com/reference/column-buckling" in item.value
+        for item in app.caption
+    )
+
+
+def test_classification_reports_missing_material_property_without_inventing_it() -> None:
+    app = _app_with_circle()
+    app.selectbox(key="material_selector").set_value("Aluminium")
+    app.run(timeout=15)
+    app = _calculate(app)
+
+    assert app.number_input(key="yield_stress_mpa").value is None
+    assert _metric_values(app)["Classification"] == "Classification unavailable"
+    assert any("yield stress" in item.value for item in app.warning)
+
+
+def test_column_classification_updates_with_geometry_and_end_condition() -> None:
+    app = _calculate(_app_with_circle(length_mm=200.0))
+    assert _metric_values(app)["Classification"] == "Short"
+
+    app.number_input(key="column_length_mm").set_value(500.0)
+    app.run(timeout=15)
+    app = _calculate(app)
+    assert _metric_values(app)["Classification"] == "Intermediate"
+
+    app.selectbox(key="end_condition").set_value("fixed-free")
+    app.run(timeout=15)
+    app = _calculate(app)
+    assert _metric_values(app)["Classification"] == "Long"
+
+    app.number_input(key="diameter_mm").set_value(40.0)
+    app.run(timeout=15)
+    app = _calculate(app)
+    assert _metric_values(app)["Classification"] == "Intermediate"
+
+    app.selectbox(key="material_selector").set_value("Stainless Steel")
+    app.run(timeout=15)
+    app.number_input(key="yield_stress_mpa").set_value(250.0)
+    app.run(timeout=15)
+    app = _calculate(app)
+    assert _metric_values(app)["Classification"] == "Intermediate"
+
+    app.selectbox(key="section_type").set_value("Rectangular")
+    app.run(timeout=15)
+    app.number_input(key="width_mm").set_value(40.0)
+    app.number_input(key="height_mm").set_value(20.0)
+    app.number_input(key="column_length_mm").set_value(200.0)
+    app.selectbox(key="end_condition").set_value("pinned-pinned")
+    app.run(timeout=15)
+    app = _calculate(app)
+    assert _metric_values(app)["Classification"] == "Short"
+
+
 def test_50_mm_by_3000_mm_pinned_column_euler_load_is_67_288_kn() -> None:
     app = AppTest.from_file(APP_PATH).run(timeout=15)
     app = _select_custom_material(app, yield_stress_mpa=250.0)
@@ -120,21 +182,18 @@ def test_invalid_youngs_modulus_does_not_produce_theory_loads() -> None:
     assert _metric_values(app)["Young's modulus E for recommendation"] == "Not provided or valid"
 
 
-def test_recommended_theory_section_explains_johnson_and_short_column_limitation() -> None:
+def test_short_column_classification_does_not_recommend_intermediate_theory() -> None:
     app = _calculate(_app_with_circle())
 
     assert any(item.value == "Recommended Theory" for item in app.subheader)
-    assert any("Recommended theory: Johnson" in item.value for item in app.success)
-    assert any("Very low slenderness can be crushing-dominated" in item.value for item in app.warning)
-    assert any(
-        "not a certification of short-column behavior" in item.value
-        for item in app.markdown
-    )
+    assert any("Insufficient information to recommend" in item.value for item in app.info)
+    assert any("SHORT COLUMN" in item.value for item in app.success)
     metrics = _metric_values(app)
     assert metrics["Recommendation slenderness ratio Le/k"] == "40 dimensionless"
     assert metrics["Young's modulus E for recommendation"] == "200 GPa"
     assert metrics["Yield stress sigma_y for recommendation"] == "275 MPa"
     assert metrics["Compressive strength sigma_c for recommendation"] == "Not provided or valid"
+    assert _comparison_rows(app)["Johnson"]["Applicability status"] == ApplicabilityStatus.OUT_OF_RANGE.value
     assert any("MechanicalC" in item.value for item in app.markdown)
     assert any("Rankine criteria are not configured" in item.value for item in app.caption)
 
@@ -321,7 +380,7 @@ def test_johnson_curve_honors_configured_lower_applicability_boundary(monkeypatc
         "load_applicability_criteria",
         lambda: criteria,
     )
-    app = _app_with_circle(length_mm=400.0)
+    app = _app_with_circle(length_mm=500.0)
     app.number_input(key="youngs_modulus_gpa").set_value(205.0)
     app.run(timeout=15)
     app = _calculate(app)
@@ -344,7 +403,7 @@ def test_johnson_curve_honors_configured_lower_applicability_boundary(monkeypatc
         for trace in johnson_chart["data"]
         if trace.get("name") == "Current column — applicable point"
     )
-    assert applicable_marker["x"] == [80.0]
+    assert applicable_marker["x"] == [100.0]
 
 
 def test_applied_load_assessment_and_theoretical_allowable_are_applicability_gated() -> None:
@@ -738,14 +797,14 @@ def test_material_switch_recalculates_results_without_stale_custom_properties() 
 def test_standard_material_edits_recalculate_theories_recommendation_and_graphs() -> None:
     app = AppTest.from_file(APP_PATH).run(timeout=15)
     app.number_input(key="diameter_mm").set_value(20.0)
-    app.number_input(key="column_length_mm").set_value(200.0)
+    app.number_input(key="column_length_mm").set_value(500.0)
     app.number_input(key="factor_of_safety").set_value(2.0)
     app.run(timeout=15)
     app = _calculate(app)
     initial_euler_load = _metric_values(app)["Euler critical load"]
     assert _metric_values(app)["Johnson critical load"] == "Not calculated"
 
-    app.number_input(key="youngs_modulus_gpa").set_value(100.0)
+    app.number_input(key="youngs_modulus_gpa").set_value(220.0)
     app.run(timeout=15)
     assert _metric_values(app)["Euler critical load"] != initial_euler_load
 
@@ -883,10 +942,10 @@ def test_short_intermediate_and_long_column_recommendations_with_configured_rang
     assert any("Recommended Theory" in item.value for item in app.subheader)
     assert any("Insufficient information to recommend" in item.value for item in app.info)
 
-    app.number_input(key="column_length_mm").set_value(400.0)
+    app.number_input(key="column_length_mm").set_value(500.0)
     app.run(timeout=15)
     app = _calculate(app)
-    assert _metric_values(app)["Slenderness ratio Le/k"] == "80"
+    assert _metric_values(app)["Slenderness ratio Le/k"] == "100"
     assert any("Recommended theory: Johnson" in item.value for item in app.success)
 
     app.number_input(key="column_length_mm").set_value(1000.0)

@@ -1,9 +1,15 @@
 from collections.abc import Callable
+from dataclasses import replace
 from math import isfinite
 
 import streamlit as st
 import plotly.graph_objects as go
 
+from column_analysis.classification import (
+    ColumnClassification,
+    classify_column,
+    load_column_classification_criteria,
+)
 from column_analysis.graph_data import build_slenderness_curve_data
 from column_analysis.materials import (
     MaterialGrade,
@@ -269,6 +275,72 @@ def format_critical_load(load_n: float | None) -> str:
     if load_n is None:
         return "Not calculated"
     return format_engineering_value(load_n / 1000, "kN")
+
+
+def render_column_classification(
+    slenderness_ratio_value: float | None,
+    *,
+    youngs_modulus_pa: float | None = None,
+    yield_stress_pa: float | None = None,
+) -> ColumnClassification | None:
+    """Render a separate slenderness classification without selecting a theory."""
+    st.markdown("### Column Classification")
+    try:
+        classification_criteria = load_column_classification_criteria()
+    except ValueError as error:
+        st.metric("Classification", "Classification unavailable")
+        st.caption(f"Classification criteria could not be loaded or validated: {error}")
+        return None
+
+    classification = classify_column(
+        slenderness_ratio_value,
+        classification_criteria,
+        youngs_modulus_pa=youngs_modulus_pa,
+        yield_stress_pa=yield_stress_pa,
+    )
+    classification_columns = st.columns(2)
+    classification_columns[0].metric(
+        "Classification",
+        (
+            classification.classification.value
+            if classification.classification is not None
+            else "Classification unavailable"
+        ),
+    )
+    classification_columns[1].metric(
+        "Current slenderness ratio",
+        format_engineering_value(classification.slenderness_ratio, "dimensionless")
+        if classification.slenderness_ratio is not None
+        else "Not available",
+    )
+    st.write(f"**Applicable classification range:** {classification.applicable_range}")
+    if classification.classification is None:
+        st.warning(classification.explanation)
+    else:
+        st.success(
+            f"**{classification.classification.value.upper()} COLUMN** — "
+            f"{classification.explanation}"
+        )
+        st.caption(
+            f"Reference: [{classification.reference}]({classification.reference_url}). "
+            "Classification is a separate assessment; its material-dependent short-column "
+            "limit also prevents recommending Johnson in the crushing-dominated range. "
+            "It does not replace the independently configured Euler/Johnson transition or "
+            "Rankine criteria."
+        )
+    with st.expander("Classification equations and assumptions"):
+        st.markdown(
+            f"- Short boundary: `{classification_criteria.short_boundary_equation}` "
+            f"({classification_criteria.short_boundary_derivation})\n"
+            f"- Intermediate/long boundary: "
+            f"`{classification_criteria.intermediate_boundary_equation}` "
+            f"({classification_criteria.intermediate_boundary_derivation})\n"
+            f"- Units: slenderness `{classification_criteria.units['slenderness_ratio']}`, "
+            f"E `{classification_criteria.units['youngs_modulus']}`, "
+            f"yield stress `{classification_criteria.units['yield_stress']}`\n"
+            + "\n".join(f"- {assumption}" for assumption in classification_criteria.assumptions)
+        )
+    return classification
 
 
 st.set_page_config(
@@ -695,6 +767,7 @@ st.divider()
 st.subheader("Results")
 if geometry_input_errors:
     st.error("Not calculated — invalid geometry input. Correct the errors above before calculating section properties.")
+    render_column_classification(None)
 else:
     geometry_is_complete = column_length_mm is not None and (
         all(
@@ -705,6 +778,7 @@ else:
 
     if not geometry_is_complete:
         st.info("Enter the section dimensions and column length to calculate section and column properties.")
+        render_column_classification(None)
     else:
         try:
             column_length_m = column_length_mm / 1000
@@ -736,6 +810,7 @@ else:
             )
         except (ValueError, OverflowError) as error:
             st.error(f"Could not calculate column properties: {error}")
+            render_column_classification(None)
         else:
             st.markdown("### Column Properties")
             property_columns = st.columns(3)
@@ -811,6 +886,27 @@ else:
                 property_columns[1].metric("Applied axial load", "Not entered")
             else:
                 property_columns[1].metric("Applied axial load", format_engineering_value(applied_load_kn, "kN"))
+
+            column_classification = render_column_classification(
+                slenderness_ratio_value,
+                youngs_modulus_pa=(
+                    youngs_modulus_gpa * 1e9
+                    if youngs_modulus_gpa is not None
+                    and not any(
+                        error.startswith("Young's modulus E") for error in input_errors
+                    )
+                    else None
+                ),
+                yield_stress_pa=(
+                    yield_stress_mpa * 1e6
+                    if yield_stress_mpa is not None
+                    and not any(
+                        error.startswith("Yield stress sigma_y")
+                        for error in input_errors
+                    )
+                    else None
+                ),
+            )
 
             st.markdown("### Critical Loads")
             euler_load_n = None
@@ -908,7 +1004,25 @@ else:
                     TheoryName.RANKINE: rankine_load_n,
                     TheoryName.JOHNSON: johnson_load_n,
                 },
-                criteria=applicability_criteria,
+                criteria=(
+                    replace(
+                        applicability_criteria,
+                        johnson_minimum_slenderness_ratio=(
+                            column_classification.short_max_slenderness_ratio
+                        ),
+                        johnson_range_reference=(
+                            "Johnson intermediate range begins at the material-specific "
+                            "Euler-stress/yield boundary in classification_criteria.json"
+                        ),
+                        johnson_range_reference_url=(
+                            column_classification.reference_url
+                        ),
+                    )
+                    if column_classification is not None
+                    and column_classification.classification is not None
+                    and column_classification.short_max_slenderness_ratio is not None
+                    else applicability_criteria
+                ),
             )
             reviews_by_name = {
                 review.theory.value: review for review in recommendation.theory_reviews
